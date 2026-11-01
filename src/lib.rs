@@ -12,11 +12,14 @@
 //! [`path_is_within`] compares two already-canonical paths and does not touch
 //! the disk.
 //!
-//! The crate does not write files, run commands, list directories, decode or
-//! resize images, or count tokens. An [`Err`] carrying a [`ToolError`] is only
-//! a contract failure ([`ErrorCode::InputInvalid`] or
-//! [`ErrorCode::SpecInvalid`]). Operational read codes (`AGT_READ_*`) appear in
-//! [`ToolOutput`] text.
+//! The crate does not write files, list directories, decode or resize images,
+//! or count tokens. It runs a command only when the host supplies an
+//! [`ExecRunner`]: the SDK builds argv and a capture window, and the runner
+//! spawns the process. The SDK does not search `PATH`, does not read
+//! `std::env`, and does not write a spill file. An [`Err`] carrying a
+//! [`ToolError`] is only a contract failure ([`ErrorCode::InputInvalid`] or
+//! [`ErrorCode::SpecInvalid`]). Operational read codes (`AGT_READ_*`) and exec
+//! codes (`AGT_EXEC_*`) appear in [`ToolOutput`] text.
 //!
 //! The next example defines a tool without a read source; [`ReadTool`] is the
 //! read tool.
@@ -53,12 +56,22 @@
 //! ```
 
 mod error;
+pub mod exec;
 mod path;
 pub mod read;
 mod tool;
 
 pub use async_trait::async_trait;
 pub use error::{ErrorCode, ToolError};
+#[cfg(feature = "runner")]
+pub use exec::StdRunner;
+pub use exec::{
+    CANCELLED, CWD_REJECTED, Capture, CommandClass, CommandView, CwdDecision, ExecCeilings,
+    ExecConfig, ExecCwd, ExecEnv, ExecInput, ExecJobs, ExecOutcome, ExecRequest, ExecRunner,
+    ExecSpill, ExecStatus, ExecTool, ExecToolBuilder, HOST_FAILED, HostFailure, JOB_NOT_FOUND,
+    JobAction, JobError, JobStatus, JobView, NONZERO_EXIT, SANDBOX_DENIED, SPAWN_FAILED, ShellKind,
+    ShellSpec, SpillNote, StartedJob, TIMED_OUT,
+};
 pub use path::path_is_within;
 pub use read::{
     DEFAULT_LIMIT_DESCRIPTION, DEFAULT_OFFSET_DESCRIPTION, DEFAULT_PATH_DESCRIPTION,
