@@ -3,12 +3,13 @@ name = "rust-agent-tool"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
-description = "Agent tool contract and a read tool whose filesystem I/O is injected by the host."
+description = "Agent tool contract with host-injected read and exec tools."
 license = "MIT"
 readme = "README.md"
 
 [dependencies]
 async-trait = "0.1.92"
+process-wrap = { version = "10.0.1", optional = true, default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 
@@ -18,3 +19,12 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
+
+[features]
+default = []
+runner = [
+    "dep:process-wrap",
+    "process-wrap/std",
+    "process-wrap/process-group",
+    "process-wrap/job-object",
+]
