@@ -1,0 +1,19 @@
+[package]
+name = "rust-agent-tool"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+description = "Shared contract for agent tools. Does not perform I/O."
+readme = "README.md"
+
+[dependencies]
+async-trait = "0.1.92"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

@@ -1,0 +1,5 @@
+# Builds track stable so a security fix is picked up on the next rustup update.
+# Cargo.toml rust-version is the oldest compiler this crate still accepts.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
