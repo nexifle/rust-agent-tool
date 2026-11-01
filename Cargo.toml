@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
 description = "Shared contract for agent tools. Does not perform I/O."
+license = "MIT"
 readme = "README.md"
 
 [dependencies]

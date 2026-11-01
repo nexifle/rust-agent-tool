@@ -1,37 +1,27 @@
 # rust-agent-tool
 
-Shared contract for agent tools.
+Shared contract for agent tools. Engineered by [Nexifle Lab](https://nexifle.com).
 
-Another Rust program depends on this crate to describe a tool, call it, and report a contract failure. The crate does not read files, write files, or run commands, and it does not ship a read, edit, write, or execution tool.
+`rust-agent-tool` lets a Rust host describe a tool, call it, and report a contract failure. Tool implementations and host applications share that boundary so each new tool does not invent its own calling convention.
 
-## Requirements
+The crate does not read files, write files, run commands, or decide which paths a host may touch. It also does not include read, edit, write, or execution tools.
 
-Rust 1.99.1 or newer. That is the stable release this foundation was checked against. It includes the 1.99.1 fix for FFI `bool` returns, which could otherwise be observed as a value other than 0 or 1.
+Version 0.1 is not a stable API. Expect breaks before 1.0.
 
-`rust-toolchain.toml` tracks the stable channel. Bump `rust-version` in `Cargo.toml` when a newer stable includes a security fix that this crate must require.
+## Installation
 
-## Contract
+This crate is not published to crates.io. Depend on a local checkout:
 
-| Type | Role |
-| --- | --- |
-| `ToolSpec` | Name, description, and a JSON object used as the input schema. |
-| `CallContext` | Optional call id for one invocation. Not an I/O port. |
-| `Tool` | `spec` and `call`. `boxed` erases the concrete tool into `Box<dyn Tool>`. |
-| `ToolOutput` | Text for the model. `is_error` means the operation failed and the model should see that. |
-| `ToolError` | Contract failure. Display form is `AGT_CODE: message`. |
+```toml
+[dependencies]
+rust-agent-tool = { path = "../rust-agent-tool" }
+```
 
-`Tool::call` takes the context and the model input. Host capabilities are stored on the tool value when a future tool needs them. They are not added to this trait in advance.
+Do not add a `git` dependency until this repository has a public remote. There is no install URL to copy yet.
 
-## Error codes
+The crate does not select an async runtime. The host brings its own.
 
-| Code | When |
-| --- | --- |
-| `AGT_INPUT_INVALID` | The call input cannot be used. |
-| `AGT_SPEC_INVALID` | The tool specification is not usable. |
-
-Codes are stable. Add a new code. Do not rename a published code.
-
-## Example
+## Usage
 
 ```rust
 use rust_agent_tool::{async_trait, CallContext, Tool, ToolOutput, ToolSpec};
@@ -58,8 +48,47 @@ impl Tool for Echo {
 }
 
 let echo = Echo {
-    spec: ToolSpec::new("echo", "Return the text field.", json!({"type": "object"})).unwrap(),
+    spec: ToolSpec::new(
+        "echo",
+        "Return the text field.",
+        json!({"type": "object"}),
+    )
+    .expect("valid spec"),
 };
 let tools: Vec<Box<dyn Tool>> = vec![echo.boxed()];
 assert_eq!(tools[0].spec().name(), "echo");
 ```
+
+`ToolSpec::new` rejects an empty name, a name that contains whitespace, an empty description, and an input schema that is not a JSON object. `Tool::call` receives the call context and the model input. A host capability, when a tool needs one, is stored on the tool value at construction. It is not an argument of `call`.
+
+`ToolOutput::error_text` is for an operational failure the model should see. `Err(ToolError)` is for a contract failure the host must handle.
+
+## API
+
+| Type | Role |
+| --- | --- |
+| `ToolSpec` | Name, description, and the JSON object used as the input schema. |
+| `CallContext` | Optional call id for one invocation. |
+| `Tool` | `spec`, `call`, and `boxed` for `Box<dyn Tool>`. |
+| `ToolOutput` | Text returned to the model. `is_error` marks an operational failure. |
+| `ToolError` | Contract failure. Display form is `AGT_CODE: message`. |
+| `ErrorCode` | Stable code. Match on `as_str` so new codes do not break hosts. |
+
+`async_trait` is re-exported. Implementors do not need a direct dependency on that crate.
+
+## Error codes
+
+| Code | When |
+| --- | --- |
+| `AGT_INPUT_INVALID` | The call input cannot be used. |
+| `AGT_SPEC_INVALID` | The tool specification is not usable. |
+
+Published codes are not renamed. A new failure gets a new code.
+
+## Compatibility
+
+Rust 1.99.1 or newer is required. The crate uses edition 2024 and contains no `unsafe` code.
+
+## License
+
+Copyright (c) 2026 [Nexifle Lab](https://nexifle.com). Licensed under the [MIT license](LICENSE).
