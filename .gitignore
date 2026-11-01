@@ -20,3 +20,6 @@ rustc-ice-*.txt
 
 # macOS
 .DS_Store
+
+# Local design notes, not part of the published crate
+docs/
