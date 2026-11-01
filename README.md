@@ -4,7 +4,7 @@ Shared contract for agent tools. Engineered by [Nexifle Lab](https://nexifle.com
 
 `rust-agent-tool` lets a Rust host describe a tool, call it, and report a contract failure. Tool implementations and host applications share that boundary so each new tool does not invent its own calling convention.
 
-The crate does not read files, write files, run commands, or decide which paths a host may touch. It also does not include read, edit, write, or execution tools.
+The crate ships `ReadTool`. Its filesystem I/O is injected through `ReadSource`, so the SDK does not open paths, does not call `std::fs`, and does not canonicalize. The host canonicalizes the path and checks containment before it returns `ReadNode::File`, so a symlink that resolves outside the workspace is `ReadNode::OutsideWorkspace`, not `File`. The crate still does not write files, run commands, list directories, decode or resize images, or count tokens.
 
 Version 0.1 is not a stable API. Expect breaks before 1.0.
 
@@ -63,6 +63,29 @@ assert_eq!(tools[0].spec().name(), "echo");
 
 `ToolOutput::error_text` is for an operational failure the model should see. `Err(ToolError)` is for a contract failure the host must handle.
 
+## Read tool
+
+`ReadTool` reads text and image files through a host-supplied `ReadSource`. Construct it with `ReadTool::new(source, ReadConfig::new())`; the config defaults to 2000 lines, a 48 KiB output budget, and a 5 MiB image limit. The host implements `ReadSource` and decides which paths are allowed. Before it returns `ReadNode::File`, it canonicalizes the path and checks containment; `path_is_within` compares two already-canonical paths and does not touch the disk.
+
+Text windows use a 1-based `offset` and a `limit` in lines, both optional. Images come back as `ImagePart` bytes, not base64, and line windows do not apply to them. An operational read failure is a `ReadOutcome::Failed` rendered as `ToolOutput::error_text` with an `AGT_READ_*` code, so the model can see and recover from it. `Err(ToolError)` is only a contract failure (`AGT_INPUT_INVALID` or `AGT_SPEC_INVALID`).
+
+```rust,ignore
+use rust_agent_tool::{async_trait, ReadConfig, ReadNode, ReadSource, ReadTool, SourceFailure};
+
+// The host owns the filesystem; the SDK never opens a path itself.
+struct WorkspaceSource;
+
+#[async_trait]
+impl ReadSource for WorkspaceSource {
+    async fn lookup(&self, _path: &str) -> Result<ReadNode, SourceFailure> {
+        // Canonicalize the path, check containment, then return ReadNode::File.
+        Ok(ReadNode::Absent)
+    }
+}
+
+let tool = ReadTool::new(WorkspaceSource, ReadConfig::new()).expect("valid config");
+```
+
 ## API
 
 | Type | Role |
@@ -73,6 +96,12 @@ assert_eq!(tools[0].spec().name(), "echo");
 | `ToolOutput` | Text returned to the model. `is_error` marks an operational failure. |
 | `ToolError` | Contract failure. Display form is `AGT_CODE: message`. |
 | `ErrorCode` | Stable code. Match on `as_str` so new codes do not break hosts. |
+| `ReadTool` | Tool over a `ReadSource`. `new`, `execute`, and description setters. |
+| `ReadConfig` | Line, byte, chunk, and image limits for one read tool. |
+| `ReadSource` | Host capability that resolves a path and streams file bytes. |
+| `ReadOutcome` | Text, notice, image, or operational failure from one read. |
+| `ImagePart` | Media type label and raw image bytes returned beside the text. |
+| `path_is_within` | Whether one already-canonical path is inside another. |
 
 `async_trait` is re-exported. Implementors do not need a direct dependency on that crate.
 
@@ -83,7 +112,7 @@ assert_eq!(tools[0].spec().name(), "echo");
 | `AGT_INPUT_INVALID` | The call input cannot be used. |
 | `AGT_SPEC_INVALID` | The tool specification is not usable. |
 
-Published codes are not renamed. A new failure gets a new code.
+These are the only `ToolError` codes. Operational read codes (`AGT_READ_*`) appear in `ToolOutput` text instead, so the model can see them. Published codes are not renamed. A new failure gets a new code.
 
 ## Compatibility
 

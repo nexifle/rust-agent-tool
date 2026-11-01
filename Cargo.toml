@@ -3,7 +3,7 @@ name = "rust-agent-tool"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
-description = "Shared contract for agent tools. Does not perform I/O."
+description = "Agent tool contract and a read tool whose filesystem I/O is injected by the host."
 license = "MIT"
 readme = "README.md"
 
