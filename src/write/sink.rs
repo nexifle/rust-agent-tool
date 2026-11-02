@@ -40,7 +40,7 @@ pub const SINK_FAILED: &str = "AGT_WRITE_SINK_FAILED";
 /// host writes those bytes as UTF-8 and does not invent a second encoding. The
 /// host creates missing parent directories if it allows them, and it chooses
 /// how the file is replaced. This tool does not append a trailing newline. If
-    /// the host wants one, it adds that byte inside [`WriteSink::write`].
+/// the host wants one, it adds that byte inside [`WriteSink::write`].
 ///
 /// A policy refusal belongs in [`WriteSink::prepare`], which is why a refusal
 /// never reaches [`WriteSink::write`]. [`WriteSink::write`] is only for the
