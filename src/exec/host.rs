@@ -13,6 +13,7 @@ use crate::async_trait;
 use crate::exec::argv::ShellKind;
 use crate::exec::capture::Capture;
 use crate::exec::classify::CommandClass;
+pub use crate::host::HostFailure;
 
 /// Directory the runner must use, or a policy refusal the model should see.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,29 +31,6 @@ pub enum CwdDecision {
         /// Human-readable reason.
         message: String,
     },
-}
-
-/// Unexpected failure inside a host hook.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HostFailure {
-    /// Human-readable reason.
-    pub message: String,
-}
-
-impl HostFailure {
-    /// Builds a failure. A blank message becomes `host hook failed`.
-    #[must_use]
-    pub fn new(message: impl Into<String>) -> Self {
-        let message = message.into();
-        let trimmed = message.trim();
-        Self {
-            message: if trimmed.is_empty() {
-                "host hook failed".to_string()
-            } else {
-                trimmed.to_string()
-            },
-        }
-    }
 }
 
 /// Where the host stored bytes the model window dropped.

@@ -3,7 +3,7 @@ name = "rust-agent-tool"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99.1"
-description = "Agent tool contract with host-injected read, exec, and write tools."
+description = "Agent tool contract with host-injected read, exec, write, and edit tools."
 license = "MIT"
 readme = "README.md"
 

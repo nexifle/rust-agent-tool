@@ -59,13 +59,14 @@ mod outcome;
 mod runner;
 mod tool;
 
+pub use crate::host::HostFailure;
 pub use argv::{ShellKind, ShellSpec, argv};
 pub use capture::Capture;
 pub use classify::{CommandClass, MAX_COMMAND_BYTES, MAX_SEGMENTS, classify};
 pub use config::{ExecCeilings, ExecConfig};
 pub use host::{
     CommandView, CwdDecision, ExecCwd, ExecEnv, ExecJobs, ExecRequest, ExecRunner, ExecSpill,
-    ExecStatus, HostFailure, JobError, JobStatus, JobView, SpillNote, StartedJob,
+    ExecStatus, JobError, JobStatus, JobView, SpillNote, StartedJob,
 };
 pub use input::{ExecInput, JobAction, default_description, input_schema};
 pub use outcome::{
