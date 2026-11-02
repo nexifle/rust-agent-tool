@@ -4,8 +4,8 @@
 //! failure. A host capability is added with the tool that needs it, and is
 //! injected when that tool is constructed. It is not part of [`Tool::call`].
 //!
-//! The crate ships [`ReadTool`], [`ExecTool`], and [`WriteTool`]. Read
-//! filesystem I/O is injected through [`ReadSource`]: the SDK does not open
+//! The crate ships [`ReadTool`], [`ExecTool`], [`WriteTool`], and [`EditTool`].
+//! Read filesystem I/O is injected through [`ReadSource`]: the SDK does not open
 //! paths, does not call `std::fs`, and does not canonicalize. The host
 //! canonicalizes the path and checks containment before it returns
 //! [`ReadNode::File`], so a symlink that resolves outside the workspace is
@@ -22,11 +22,21 @@
 //! [`WriteSink::prepare`] and performs it in [`WriteSink::write`]. The SDK keeps
 //! no session memory of earlier writes and holds no path lock.
 //!
+//! A region of an existing file is replaced only through two host hooks:
+//! [`EditSource::open`] returns the whole file as raw bytes and [`EditSink::apply`]
+//! performs a compare-and-swap write. The SDK does not call `std::fs`, does not
+//! open, create, truncate, or canonicalize a path, and does not create a file.
+//! The host owns resolution, containment, atomic replacement, and every
+//! permission decision, and the compare-and-swap in [`EditSink::apply`] is what
+//! closes the read-then-write race. The SDK keeps no session memory of earlier
+//! reads and holds no path lock.
+//!
 //! The crate does not list directories, decode or resize images, or count
 //! tokens. An [`Err`] carrying a [`ToolError`] is only a contract failure
 //! ([`ErrorCode::InputInvalid`] or [`ErrorCode::SpecInvalid`]). Operational read
-//! codes (`AGT_READ_*`), exec codes (`AGT_EXEC_*`), and write codes
-//! (`AGT_WRITE_*`) appear in [`ToolOutput`] text, not in [`ErrorCode`].
+//! codes (`AGT_READ_*`), exec codes (`AGT_EXEC_*`), write codes (`AGT_WRITE_*`),
+//! and edit codes (`AGT_EDIT_*`) appear in [`ToolOutput`] text, not in
+//! [`ErrorCode`].
 
 //!
 //! The next example defines a tool without a read source; [`ReadTool`] is the
@@ -63,8 +73,10 @@
 //! assert_eq!(tools[0].spec().name(), "echo");
 //! ```
 
+pub mod edit;
 mod error;
 pub mod exec;
+mod host;
 mod path;
 pub mod read;
 mod text;
@@ -72,6 +84,10 @@ mod tool;
 pub mod write;
 
 pub use async_trait::async_trait;
+pub use edit::{
+    EditCeilings, EditConfig, EditFile, EditOutcome, EditPermit, EditRefusal, EditSink, EditSource,
+    EditTool, MatchMode, MatchTier, NewlinePolicy,
+};
 pub use error::{ErrorCode, ToolError};
 #[cfg(feature = "runner")]
 pub use exec::StdRunner;
