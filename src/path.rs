@@ -1,8 +1,17 @@
-//! Path containment for two already-canonical paths.
+//! Path checks that never touch the disk.
 //!
-//! The check is pure: it compares path components and never touches the disk.
+//! [`path_is_within`] compares two already-canonical paths.
+//! [`check_model_path`] validates the path string a model sent, before any host
+//! resolves it. Neither function opens, canonicalizes, or stats a path.
 
 use std::path::{Path, is_separator};
+
+/// Maximum accepted length of a model-supplied path, in UTF-8 bytes.
+///
+/// The limit stops a giant path key in one tool call. It is not a filesystem
+/// `NAME_MAX` check, it counts bytes rather than characters, and the host still
+/// enforces its own path limits.
+pub(crate) const MAX_MODEL_PATH_BYTES: usize = 4096;
 
 /// Returns whether `canonical_path` is `canonical_root` or a path below it.
 ///
@@ -48,6 +57,55 @@ pub fn path_is_within(canonical_path: &Path, canonical_root: &Path) -> bool {
     })
 }
 
+/// Reason a model-supplied path was rejected by [`check_model_path`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ModelPathError {
+    /// The path is empty or only whitespace.
+    Blank,
+    /// The path has leading or trailing whitespace.
+    Padded,
+    /// The path contains a NUL byte.
+    Nul,
+    /// The path is longer than [`MAX_MODEL_PATH_BYTES`] in UTF-8 bytes.
+    TooLong {
+        /// Length of the rejected path in UTF-8 bytes.
+        bytes: usize,
+    },
+}
+
+/// Checks a model-supplied path without touching the disk.
+///
+/// The rules run in order and the first match wins:
+///
+/// 1. A path that is empty, only whitespace, or padded with whitespace is
+///    rejected. The path is never trimmed and then accepted.
+/// 2. A path that contains a NUL byte is rejected.
+/// 3. A path longer than [`MAX_MODEL_PATH_BYTES`] UTF-8 bytes is rejected.
+///
+/// The path is not joined to a root, stripped of `./`, or stored. The caller
+/// keeps the model string unchanged.
+///
+/// # Errors
+///
+/// Returns the first [`ModelPathError`] that matches. The caller turns it into
+/// a contract error with a human-readable message.
+pub(crate) fn check_model_path(path: &str) -> Result<(), ModelPathError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ModelPathError::Blank);
+    }
+    if trimmed.len() != path.len() {
+        return Err(ModelPathError::Padded);
+    }
+    if path.as_bytes().contains(&0) {
+        return Err(ModelPathError::Nul);
+    }
+    if path.len() > MAX_MODEL_PATH_BYTES {
+        return Err(ModelPathError::TooLong { bytes: path.len() });
+    }
+    Ok(())
+}
+
 /// Whether a raw path segment is `.` or `..`.
 ///
 /// [`Path::components`] normalizes away `.` segments, so the segments are read
@@ -60,7 +118,7 @@ fn has_dot_segment(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::path_is_within;
+    use super::{MAX_MODEL_PATH_BYTES, ModelPathError, check_model_path, path_is_within};
     use std::path::{Path, PathBuf};
 
     /// An absolute root that does not need to exist on disk.
@@ -150,5 +208,76 @@ mod tests {
         let root = Path::new("/");
         assert!(path_is_within(root, root));
         assert!(path_is_within(Path::new("/repo/src"), root));
+    }
+
+    #[test]
+    fn a_clean_model_path_is_accepted() {
+        for path in ["a", "src/lib.rs", "my notes.txt", "./a", "a/b c/d"] {
+            assert_eq!(check_model_path(path), Ok(()));
+        }
+    }
+
+    #[test]
+    fn an_empty_or_whitespace_only_path_is_rejected() {
+        for path in ["", " ", "   ", "\t", "\n", " \t\n "] {
+            assert_eq!(check_model_path(path), Err(ModelPathError::Blank));
+        }
+    }
+
+    #[test]
+    fn a_padded_path_is_rejected() {
+        for path in [" foo", "foo ", " foo ", "\tfoo", "foo\n"] {
+            assert_eq!(check_model_path(path), Err(ModelPathError::Padded));
+        }
+    }
+
+    #[test]
+    fn a_path_with_nul_is_rejected() {
+        for path in ["\0", "a\0b", "a/b\0"] {
+            assert_eq!(check_model_path(path), Err(ModelPathError::Nul));
+        }
+    }
+
+    #[test]
+    fn a_path_at_the_byte_cap_is_accepted() {
+        let path = "a".repeat(MAX_MODEL_PATH_BYTES);
+        assert_eq!(check_model_path(&path), Ok(()));
+    }
+
+    #[test]
+    fn a_path_over_the_byte_cap_is_rejected() {
+        let path = "a".repeat(MAX_MODEL_PATH_BYTES + 1);
+        assert_eq!(
+            check_model_path(&path),
+            Err(ModelPathError::TooLong {
+                bytes: MAX_MODEL_PATH_BYTES + 1
+            })
+        );
+    }
+
+    #[test]
+    fn the_byte_cap_counts_utf8_bytes_not_scalars() {
+        let at_cap = "é".repeat(MAX_MODEL_PATH_BYTES / 2);
+        assert_eq!(at_cap.len(), MAX_MODEL_PATH_BYTES);
+        assert_eq!(check_model_path(&at_cap), Ok(()));
+
+        let over = format!("{at_cap}é");
+        assert!(over.chars().count() <= MAX_MODEL_PATH_BYTES);
+        assert_eq!(
+            check_model_path(&over),
+            Err(ModelPathError::TooLong {
+                bytes: MAX_MODEL_PATH_BYTES + 2
+            })
+        );
+    }
+
+    #[test]
+    fn whitespace_is_rejected_before_the_nul_and_length_rules() {
+        let padded_long = format!(" {}", "a".repeat(MAX_MODEL_PATH_BYTES));
+        assert_eq!(check_model_path(&padded_long), Err(ModelPathError::Padded));
+        assert_eq!(check_model_path(" a\0b"), Err(ModelPathError::Padded));
+
+        let long_nul = format!("a\0{}", "a".repeat(MAX_MODEL_PATH_BYTES));
+        assert_eq!(check_model_path(&long_nul), Err(ModelPathError::Nul));
     }
 }
