@@ -4,7 +4,7 @@ Shared contract for agent tools. Engineered by [Nexifle Lab](https://nexifle.com
 
 `rust-agent-tool` lets a Rust host describe a tool, call it, and report a contract failure. Tool implementations and host applications share that boundary so each new tool does not invent its own calling convention.
 
-The crate ships `ReadTool` and `ExecTool`. Read filesystem I/O is injected through `ReadSource`, so the SDK does not open paths, does not call `std::fs`, and does not canonicalize. The host canonicalizes the path and checks containment before it returns `ReadNode::File`, so a symlink that resolves outside the workspace is `ReadNode::OutsideWorkspace`, not `File`. A command runs only when the host supplies an `ExecRunner`. The SDK builds argv and a capture window; it does not search `PATH`, read `std::env`, or write a spill file. The optional `runner` feature adds `StdRunner`, a reference process runner. The crate still does not write files, list directories, decode or resize images, or count tokens.
+The crate ships `ReadTool`, `ExecTool`, and `WriteTool`. Read filesystem I/O is injected through `ReadSource`, so the SDK does not open paths, does not call `std::fs`, and does not canonicalize. The host canonicalizes the path and checks containment before it returns `ReadNode::File`, so a symlink that resolves outside the workspace is `ReadNode::OutsideWorkspace`, not `File`. A command runs only when the host supplies an `ExecRunner`. The SDK builds argv and a capture window; it does not search `PATH`, read `std::env`, or write a spill file. The optional `runner` feature adds `StdRunner`, a reference process runner. A file is written only through `WriteSink`: the SDK does not call `std::fs`, does not create parent directories, and does not canonicalize. The crate still does not list directories, decode or resize images, or count tokens.
 
 Version 0.1 is not a stable API. Expect breaks before 1.0.
 
@@ -105,6 +105,10 @@ let tool = ReadTool::new(WorkspaceSource, ReadConfig::new()).expect("valid confi
 | `ExecTool` | Tool over host `ExecCwd`, `ExecRunner`, and optional job, env, and spill hooks. |
 | `ExecConfig` | Output, timeout, and chunk limits for one exec tool. |
 | `StdRunner` | Reference runner. Only with the `runner` feature. |
+| `WriteTool` | Tool over a `WriteSink`. `new`, `execute`, and `call`. |
+| `WriteConfig` | Content byte budget, NUL and empty policy, and omission markers. |
+| `WriteSink` | Host capability that approves a write, then performs it. |
+| `WriteOutcome` | Created or overwrote, or an operational write failure. |
 
 `async_trait` is re-exported. Implementors do not need a direct dependency on that crate.
 
@@ -115,7 +119,7 @@ let tool = ReadTool::new(WorkspaceSource, ReadConfig::new()).expect("valid confi
 | `AGT_INPUT_INVALID` | The call input cannot be used. |
 | `AGT_SPEC_INVALID` | The tool specification is not usable. |
 
-These are the only `ToolError` codes. Operational read codes (`AGT_READ_*`) and exec codes (`AGT_EXEC_NONZERO_EXIT`, `AGT_EXEC_TIMED_OUT`, `AGT_EXEC_CANCELLED`, `AGT_EXEC_CWD_REJECTED`, `AGT_EXEC_SPAWN_FAILED`, `AGT_EXEC_SANDBOX_DENIED`, `AGT_EXEC_JOB_NOT_FOUND`, `AGT_EXEC_HOST_FAILED`) appear in `ToolOutput` text instead, so the model can see them. Published codes are not renamed. A new failure gets a new code.
+These are the only `ToolError` codes. Operational read codes (`AGT_READ_*`), exec codes (`AGT_EXEC_NONZERO_EXIT`, `AGT_EXEC_TIMED_OUT`, `AGT_EXEC_CANCELLED`, `AGT_EXEC_CWD_REJECTED`, `AGT_EXEC_SPAWN_FAILED`, `AGT_EXEC_SANDBOX_DENIED`, `AGT_EXEC_JOB_NOT_FOUND`, `AGT_EXEC_HOST_FAILED`), and write codes (`AGT_WRITE_*`) appear in `ToolOutput` text instead, so the model can see them. Published codes are not renamed. A new failure gets a new code.
 
 ## Compatibility
 

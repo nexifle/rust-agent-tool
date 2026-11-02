@@ -4,22 +4,30 @@
 //! failure. A host capability is added with the tool that needs it, and is
 //! injected when that tool is constructed. It is not part of [`Tool::call`].
 //!
-//! The crate ships [`ReadTool`], whose filesystem I/O is injected through
-//! [`ReadSource`]. The SDK does not open paths, does not call `std::fs`, and
-//! does not canonicalize. The host canonicalizes the path and checks
-//! containment before it returns [`ReadNode::File`], so a symlink that resolves
-//! outside the workspace is [`ReadNode::OutsideWorkspace`], not `File`.
-//! [`path_is_within`] compares two already-canonical paths and does not touch
-//! the disk.
+//! The crate ships [`ReadTool`], [`ExecTool`], and [`WriteTool`]. Read
+//! filesystem I/O is injected through [`ReadSource`]: the SDK does not open
+//! paths, does not call `std::fs`, and does not canonicalize. The host
+//! canonicalizes the path and checks containment before it returns
+//! [`ReadNode::File`], so a symlink that resolves outside the workspace is
+//! [`ReadNode::OutsideWorkspace`], not `File`. [`path_is_within`] compares two
+//! already-canonical paths and does not touch the disk.
 //!
-//! The crate does not write files, list directories, decode or resize images,
-//! or count tokens. It runs a command only when the host supplies an
-//! [`ExecRunner`]: the SDK builds argv and a capture window, and the runner
-//! spawns the process. The SDK does not search `PATH`, does not read
-//! `std::env`, and does not write a spill file. An [`Err`] carrying a
-//! [`ToolError`] is only a contract failure ([`ErrorCode::InputInvalid`] or
-//! [`ErrorCode::SpecInvalid`]). Operational read codes (`AGT_READ_*`) and exec
-//! codes (`AGT_EXEC_*`) appear in [`ToolOutput`] text.
+//! A command runs only when the host supplies an [`ExecRunner`]: the SDK builds
+//! argv and a capture window, and the runner spawns the process. The SDK does
+//! not search `PATH`, does not read `std::env`, and does not write a spill file.
+//!
+//! A file is written only through [`WriteSink`]: the SDK does not call
+//! `std::fs`, does not open, create, or truncate a path, does not create parent
+//! directories, and does not canonicalize. The host approves each write in
+//! [`WriteSink::prepare`] and performs it in [`WriteSink::write`]. The SDK keeps
+//! no session memory of earlier writes and holds no path lock.
+//!
+//! The crate does not list directories, decode or resize images, or count
+//! tokens. An [`Err`] carrying a [`ToolError`] is only a contract failure
+//! ([`ErrorCode::InputInvalid`] or [`ErrorCode::SpecInvalid`]). Operational read
+//! codes (`AGT_READ_*`), exec codes (`AGT_EXEC_*`), and write codes
+//! (`AGT_WRITE_*`) appear in [`ToolOutput`] text, not in [`ErrorCode`].
+
 //!
 //! The next example defines a tool without a read source; [`ReadTool`] is the
 //! read tool.
@@ -59,7 +67,9 @@ mod error;
 pub mod exec;
 mod path;
 pub mod read;
+mod text;
 mod tool;
+pub mod write;
 
 pub use async_trait::async_trait;
 pub use error::{ErrorCode, ToolError};
@@ -79,3 +89,8 @@ pub use read::{
     ReadSource, ReadTool, SourceFailure,
 };
 pub use tool::{CallContext, ImagePart, Tool, ToolOutput, ToolSpec};
+pub use write::{
+    BINARY, EMPTY, FORBIDDEN, INCOMPLETE, IS_DIRECTORY, NOT_FOUND, Newline, OUTSIDE_WORKSPACE,
+    PrepareError, REJECTED, SINK_FAILED, SinkFailure, TOO_LARGE, WriteCeilings, WriteConfig,
+    WriteOutcome, WritePermit, WriteRefusal, WriteSink, WriteTool,
+};
