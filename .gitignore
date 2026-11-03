@@ -22,4 +22,7 @@ rustc-ice-*.txt
 .DS_Store
 
 # Local design notes, not part of the published crate
-docs/
+plans/
+
+# Local LLM benchmark, not part of the published crate
+benchmark/
