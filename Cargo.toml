@@ -6,6 +6,16 @@ rust-version = "1.99.1"
 description = "Agent tool contract with host-injected read, exec, write, and edit tools."
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/nexifle/rust-agent-tool"
+exclude = [
+    "references-codebase/",
+    ".agents/",
+    ".pi/",
+    ".claude",
+    "plans/",
+    "benchmark/",
+    "AGENTS.md",
+]
 
 [dependencies]
 async-trait = "0.1.92"
